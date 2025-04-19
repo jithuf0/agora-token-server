@@ -1,62 +1,74 @@
-// In your Node.js token server (server.js)
 const express = require('express');
-const { RtcTokenBuilder } = require('./RtcTokenBuilder');
+const RtcTokenBuilder = require('./RtcTokenBuilder').RtcTokenBuilder;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Add proper middleware
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Add health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy' });
-});
+// Environment variables
+const AGORA_APP_ID = process.env.AGORA_APP_ID;
+const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
-// Token endpoint with better error handling
+// Validate required environment variables
+if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
+  console.error('Missing required environment variables');
+  process.exit(1);
+}
+
+// Generate Agora token
+function generateToken(channelName, uid, role, isAdmin) {
+  const expirationInSeconds = 3600;
+  const currentTimestamp = Math.floor(Date.now() / 1000);
+  const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
+  
+  // Convert UID to number if it's a string
+  const numericUid = typeof uid === 'string' ? parseInt(uid) : uid;
+  
+  // Determine role
+  const agoraRole = (role === 'publisher' || isAdmin) ? 
+    RtcTokenBuilder.Role.PUBLISHER : 
+    RtcTokenBuilder.Role.ATTENDEE;
+
+  // Generate token
+  const token = RtcTokenBuilder.buildTokenWithUid(
+    AGORA_APP_ID,
+    AGORA_APP_CERTIFICATE,
+    channelName,
+    numericUid,
+    agoraRole,
+    privilegeExpiredTs
+  );
+
+  console.log('Generated token:', token.substring(0, 50) + '...'); // Log first part of token
+  return token;
+}
+
+// Token endpoint
 app.post('/token', async (req, res) => {
   try {
-    console.log('Token request received:', req.body);
-    
     const { channelName, uid, role = 'subscriber', isAdmin = false } = req.body;
     
     if (!channelName || uid === undefined) {
-      return res.status(400).json({ 
-        error: 'Missing parameters',
-        required: ['channelName', 'uid'],
-        received: req.body
-      });
+      return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    const expirationInSeconds = 3600;
-    const privilegeExpiredTs = Math.floor(Date.now() / 1000) + expirationInSeconds;
+    const token = generateToken(channelName, uid, role, isAdmin);
     
-    const agoraRole = (role === 'publisher' || isAdmin) ? 
-      RtcTokenBuilder.Role.PUBLISHER : 
-      RtcTokenBuilder.Role.SUBSCRIBER;
-
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      process.env.AGORA_APP_ID,
-      process.env.AGORA_APP_CERTIFICATE,
-      channelName,
-      uid,
-      agoraRole,
-      privilegeExpiredTs
-    );
+    // Verify token starts with 006 before sending
+    if (!token.startsWith('006')) {
+      throw new Error('Token generation failed - invalid format');
+    }
     
-    console.log('Token generated successfully for channel:', channelName);
     res.json({ token });
   } catch (error) {
     console.error('Token generation error:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate token',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to generate token' });
   }
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Token server running on port ${PORT}`);
-  console.log(`AGORA_APP_ID: ${process.env.AGORA_APP_ID ? 'set' : 'not set'}`);
 });
