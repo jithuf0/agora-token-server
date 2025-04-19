@@ -61,24 +61,38 @@ function generateToken(channelName, uid, isPublisher) {
 // Token endpoint with enhanced error handling
 app.post('/token', async (req, res) => {
   try {
-    const { channelName, uid, isPublisher = false } = req.body;
+    const { channelName, uid, isPublisher } = req.body;
     
     // Validate inputs
-    if (!channelName || typeof channelName !== 'string') {
-      return res.status(400).json({ error: 'Invalid channel name' });
+    if (!channelName || !uid) {
+        return res.status(400).json({ error: 'Missing channelName or uid' });
+      }
+      const numericUid = parseInt(uid, 10);
+    if (isNaN(numericUid) || numericUid < 0) {
+      return res.status(400).json({ error: 'Invalid UID format' });
     }
     
     if (uid === undefined || uid === null) {
       return res.status(400).json({ error: 'UID is required' });
     }
+    const role = isPublisher ? 
+      RtcTokenBuilder.Role.PUBLISHER : 
+      RtcTokenBuilder.Role.SUBSCRIBER;
 
-    const token = generateToken(channelName, uid, isPublisher);
+      const token = RtcTokenBuilder.buildTokenWithUid(
+        AGORA_APP_ID,
+        AGORA_APP_CERTIFICATE,
+        channelName,
+        numericUid,
+        role,
+        86400 // 24 hour expiration
+      );
     
-    res.json({ 
-      token,
-      uid: typeof uid === 'string' ? parseInt(uid, 10) : uid,
-      expiresAt: Math.floor(Date.now() / 1000) + 86400
-    });
+      res.json({ 
+        token,
+        uid: numericUid,
+        expiresAt: Math.floor(Date.now() / 1000) + 86400
+      });
   } catch (error) {
     console.error('Token generation error:', error);
     res.status(500).json({ 
