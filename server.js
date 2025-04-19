@@ -17,45 +17,37 @@ if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
   process.exit(1);
 }
 
-// Token generation with enhanced validation
-function generateToken(channelName, uid, isPublisher) {
-  // Increased expiration to 24 hours to account for clock skew
-  const expirationInSeconds = 86400; 
-  const currentTimestamp = Math.floor(Date.now() / 1000);
-  const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
-  
-  // Ensure UID is numeric
-  const numericUid = typeof uid === 'string' ? parseInt(uid, 10) : uid;
-  if (isNaN(numericUid)) {
-    throw new Error('Invalid UID format');
-  }
+// Define token builder roles
+const Role = {
+  PUBLISHER: 1,
+  SUBSCRIBER: 2
+};
 
-  // Create token content
+// Token generation function
+function buildTokenWithUid(appId, appCertificate, channelName, uid, role, privilegeExpiredTs) {
+  // Version 006 tokens
+  const tokenVersion = "006";
+  
+  // Create message content
   const tokenContent = {
-    appID: AGORA_APP_ID,
-    appCertificate: AGORA_APP_CERTIFICATE,
+    appID: appId,
+    appCertificate: appCertificate,
     channelName: channelName,
-    uid: numericUid,
+    uid: uid.toString(),
+    role: role,
     privilegeExpiredTs: privilegeExpiredTs
   };
 
-  // Generate signature with additional validation
-  const sign = crypto.createHmac('sha256', AGORA_APP_CERTIFICATE)
-    .update(`${AGORA_APP_ID}${channelName}${numericUid}${privilegeExpiredTs}`)
+  // Serialize content
+  const content = JSON.stringify(tokenContent);
+  
+  // Generate signature
+  const sign = crypto.createHmac('sha256', appCertificate)
+    .update(`${appId}${channelName}${uid}${privilegeExpiredTs}`)
     .digest('hex');
   
-  if (!sign || sign.length !== 64) {
-    throw new Error('Invalid signature generated');
-  }
-
-  const token = `006${JSON.stringify(tokenContent)}${sign}`;
-  
-  if (!token.startsWith('006')) {
-    throw new Error('Token generation failed - invalid format');
-  }
-
-  console.log(`Generated token for channel ${channelName}, UID ${numericUid}, expires at ${new Date(privilegeExpiredTs * 1000)}`);
-  return token;
+  // Combine components
+  return `${tokenVersion}${content}${sign}`;
 }
 
 // Token endpoint with enhanced error handling
@@ -65,34 +57,38 @@ app.post('/token', async (req, res) => {
     
     // Validate inputs
     if (!channelName || !uid) {
-        return res.status(400).json({ error: 'Missing channelName or uid' });
-      }
-      const numericUid = parseInt(uid, 10);
-    if (isNaN(numericUid) || numericUid < 0) {
+      return res.status(400).json({ error: 'Missing channelName or uid' });
+    }
+
+    // Convert UID to number and validate
+    const numericUid = parseInt(uid, 10);
+    if (isNaN(numericUid) {
       return res.status(400).json({ error: 'Invalid UID format' });
     }
-    
-    if (uid === undefined || uid === null) {
-      return res.status(400).json({ error: 'UID is required' });
-    }
-    const role = isPublisher ? 
-      RtcTokenBuilder.Role.PUBLISHER : 
-      RtcTokenBuilder.Role.SUBSCRIBER;
 
-      const token = RtcTokenBuilder.buildTokenWithUid(
-        AGORA_APP_ID,
-        AGORA_APP_CERTIFICATE,
-        channelName,
-        numericUid,
-        role,
-        86400 // 24 hour expiration
-      );
+    // Set token expiration (24 hours)
+    const expirationInSeconds = 86400;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
+
+    // Generate token with proper role
+    const role = isPublisher ? Role.PUBLISHER : Role.SUBSCRIBER;
+    const token = buildTokenWithUid(
+      AGORA_APP_ID,
+      AGORA_APP_CERTIFICATE,
+      channelName,
+      numericUid,
+      role,
+      privilegeExpiredTs
+    );
+
+    console.log(`Generated token for channel ${channelName}, UID ${numericUid}, expires at ${new Date(privilegeExpiredTs * 1000)}`);
     
-      res.json({ 
-        token,
-        uid: numericUid,
-        expiresAt: Math.floor(Date.now() / 1000) + 86400
-      });
+    res.json({ 
+      token,
+      uid: numericUid,
+      expiresAt: privilegeExpiredTs
+    });
   } catch (error) {
     console.error('Token generation error:', error);
     res.status(500).json({ 
