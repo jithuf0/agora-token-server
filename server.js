@@ -17,15 +17,19 @@ if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
   process.exit(1);
 }
 
-// Token generation
+// Token generation with enhanced validation
 function generateToken(channelName, uid, isPublisher) {
-  const expirationInSeconds = 3600;
+  // Increased expiration to 24 hours to account for clock skew
+  const expirationInSeconds = 86400; 
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
   
-  // Convert UID to number if it's a string
+  // Ensure UID is numeric
   const numericUid = typeof uid === 'string' ? parseInt(uid, 10) : uid;
-  
+  if (isNaN(numericUid)) {
+    throw new Error('Invalid UID format');
+  }
+
   // Create token content
   const tokenContent = {
     appID: AGORA_APP_ID,
@@ -35,45 +39,66 @@ function generateToken(channelName, uid, isPublisher) {
     privilegeExpiredTs: privilegeExpiredTs
   };
 
-  // Serialize content
-  const content = JSON.stringify(tokenContent);
-  
-  // Generate signature
+  // Generate signature with additional validation
   const sign = crypto.createHmac('sha256', AGORA_APP_CERTIFICATE)
     .update(`${AGORA_APP_ID}${channelName}${numericUid}${privilegeExpiredTs}`)
     .digest('hex');
   
-  // Combine components
-  const token = `006${content}${sign}`;
+  if (!sign || sign.length !== 64) {
+    throw new Error('Invalid signature generated');
+  }
+
+  const token = `006${JSON.stringify(tokenContent)}${sign}`;
   
-  console.log(`Generated token for channel ${channelName}, UID ${numericUid}`);
+  if (!token.startsWith('006')) {
+    throw new Error('Token generation failed - invalid format');
+  }
+
+  console.log(`Generated token for channel ${channelName}, UID ${numericUid}, expires at ${new Date(privilegeExpiredTs * 1000)}`);
   return token;
 }
 
-// Token endpoint
+// Token endpoint with enhanced error handling
 app.post('/token', async (req, res) => {
   try {
-    const { channelName, uid, isPublisher = false, isAdmin = false } = req.body;
+    const { channelName, uid, isPublisher = false } = req.body;
     
-    if (!channelName || uid === undefined) {
-      return res.status(400).json({ error: 'Missing parameters' });
+    // Validate inputs
+    if (!channelName || typeof channelName !== 'string') {
+      return res.status(400).json({ error: 'Invalid channel name' });
+    }
+    
+    if (uid === undefined || uid === null) {
+      return res.status(400).json({ error: 'UID is required' });
     }
 
-    const token = generateToken(channelName, uid, isPublisher || isAdmin);
+    const token = generateToken(channelName, uid, isPublisher);
     
-    // Verify token starts with 006 before sending
-    if (!token.startsWith('006')) {
-      throw new Error('Token generation failed - invalid format');
-    }
-    
-    res.json({ token });
+    res.json({ 
+      token,
+      uid: typeof uid === 'string' ? parseInt(uid, 10) : uid,
+      expiresAt: Math.floor(Date.now() / 1000) + 86400
+    });
   } catch (error) {
     console.error('Token generation error:', error);
-    res.status(500).json({ error: 'Failed to generate token' });
+    res.status(500).json({ 
+      error: 'Failed to generate token',
+      details: error.message
+    });
   }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    agoraAppId: AGORA_APP_ID ? 'configured' : 'missing',
+    agoraCert: AGORA_APP_CERTIFICATE ? 'configured' : 'missing'
+  });
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Token server running on port ${PORT}`);
+  console.log(`Agora App ID: ${AGORA_APP_ID ? 'configured' : 'MISSING'}`);
 });
