@@ -25,6 +25,7 @@ function generateToken(channelName, uid, role, isAdmin) {
   
   // Convert UID to number if it's a string
   const numericUid = typeof uid === 'string' ? parseInt(uid) : uid;
+  const stringUid = numericUid.toString();
   
   // Determine role
   const agoraRole = (role === 'publisher' || isAdmin) ? 
@@ -36,10 +37,19 @@ function generateToken(channelName, uid, role, isAdmin) {
     AGORA_APP_ID,
     AGORA_APP_CERTIFICATE,
     channelName,
+    stringUid, 
     numericUid,
     agoraRole,
     privilegeExpiredTs
   );
+  console.log('Token generated with:', {
+    appId: AGORA_APP_ID,
+    certificate: AGORA_APP_CERTIFICATE?.substring(0, 6) + '...',
+    channel: channelName,
+    uid: stringUid,
+    role: agoraRole,
+    expires: new Date(privilegeExpiredTs * 1000).toISOString()
+  });
 
   console.log('Generated token:', token.substring(0, 50) + '...'); // Log first part of token
   return token;
