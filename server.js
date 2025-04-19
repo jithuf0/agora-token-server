@@ -62,7 +62,7 @@ app.post('/token', async (req, res) => {
 
     // Convert UID to number and validate
     const numericUid = parseInt(uid, 10);
-    if (isNaN(numericUid) {
+    if (isNaN(numericUid)) {
       return res.status(400).json({ error: 'Invalid UID format' });
     }
 
