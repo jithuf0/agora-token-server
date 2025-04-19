@@ -18,32 +18,35 @@ if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
 }
 
 // Generate Agora token
+// Update your token generation function
 function generateToken(channelName, uid, role, isAdmin) {
-  const expirationInSeconds = 3600;
-  const currentTimestamp = Math.floor(Date.now() / 1000);
-  const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
+    const appID = AGORA_APP_ID;
+    const appCertificate = AGORA_APP_CERTIFICATE;
+    const expirationInSeconds = 3600;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
   
-  // Convert UID to number if it's a string
-  const numericUid = typeof uid === 'string' ? parseInt(uid) : uid;
+    // Convert UID to number if it's a string
+    const numericUid = typeof uid === 'string' ? parseInt(uid, 10) : uid;
+    
+    // Important: Use proper role values
+    const agoraRole = (role === 'publisher' || isAdmin) ? 
+      RtcTokenBuilder.Role.PUBLISHER : 
+      RtcTokenBuilder.Role.SUBSCRIBER;
   
-  // Determine role
-  const agoraRole = (role === 'publisher' || isAdmin) ? 
-    RtcTokenBuilder.Role.PUBLISHER : 
-    RtcTokenBuilder.Role.ATTENDEE;
-
-  // Generate token
-  const token = RtcTokenBuilder.buildTokenWithUid(
-    AGORA_APP_ID,
-    AGORA_APP_CERTIFICATE,
-    channelName,
-    numericUid,
-    agoraRole,
-    privilegeExpiredTs
-  );
-
-  console.log('Generated token:', token.substring(0, 50) + '...'); // Log first part of token
-  return token;
-}
+    // Generate token with proper parameters
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appID,
+      appCertificate,
+      channelName,
+      numericUid,
+      agoraRole,
+      privilegeExpiredTs
+    );
+  
+    console.log('Generated token for channel:', channelName, 'UID:', numericUid, 'Role:', agoraRole);
+    return token;
+  }
 
 // Token endpoint
 app.post('/token', async (req, res) => {
