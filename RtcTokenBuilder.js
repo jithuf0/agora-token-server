@@ -1,3 +1,4 @@
+// In your Node.js token server
 const crypto = require('crypto');
 
 const RtcTokenBuilder = {
@@ -7,11 +8,24 @@ const RtcTokenBuilder = {
     },
 
     buildTokenWithUid: function(appId, appCertificate, channelName, uid, role, privilegeExpiredTs) {
+        // Ensure all required parameters are present
+        if (!appId || !appCertificate || !channelName || uid === undefined || !role) {
+            throw new Error('Missing required parameters for token generation');
+        }
+        
+        // Validate privilegeExpiredTs is in the future
+        const currentTs = Math.floor(Date.now() / 1000);
+        if (privilegeExpiredTs <= currentTs) {
+            throw new Error('Token expiration must be in the future');
+        }
+
         return this.buildTokenWithAccount(appId, appCertificate, channelName, uid.toString(), role, privilegeExpiredTs);
     },
 
     buildTokenWithAccount: function(appId, appCertificate, channelName, account, role, privilegeExpiredTs) {
         const token = new AccessToken2(appId, appCertificate, privilegeExpiredTs);
+        
+        // Always add join channel privilege
         token.addPrivilege(Privileges.kJoinChannel, privilegeExpiredTs);
         
         if (role === this.Role.PUBLISHER) {
@@ -23,49 +37,3 @@ const RtcTokenBuilder = {
         return token.build();
     }
 };
-
-class AccessToken2 {
-    constructor(appId, appCertificate, expire) {
-        this.appId = appId;
-        this.appCertificate = appCertificate;
-        this.expire = expire;
-        this.issueTs = Math.floor(Date.now() / 1000);
-        this.salt = Math.floor(Math.random() * 99999999);
-        this.services = {};
-    }
-
-    addPrivilege(privilege, expireTs) {
-        this.services[privilege] = expireTs;
-    }
-
-    build() {
-        const signing = this.getSign();
-        const content = this.getContent();
-        return `${this.appId}:${content}:${signing}`;
-    }
-
-    getSign() {
-        const content = this.getContent();
-        return crypto.createHmac('sha256', this.appCertificate).update(content).digest('hex');
-    }
-
-    getContent() {
-        // Simplified content generation without msgpack
-        const contentObj = {
-            signature: crypto.createHmac('sha256', this.appCertificate).update(this.appId).digest('hex'),
-            salt: this.salt,
-            ts: this.issueTs,
-            services: this.services
-        };
-        return Buffer.from(JSON.stringify(contentObj)).toString('base64');
-    }
-}
-
-const Privileges = {
-    kJoinChannel: 1,
-    kPublishAudioStream: 2,
-    kPublishVideoStream: 3,
-    kPublishDataStream: 4
-};
-
-module.exports = { RtcTokenBuilder };
