@@ -31,6 +31,9 @@ function generateToken(channelName, uid, role, isAdmin) {
   const agoraRole = (role === 'publisher' || isAdmin) ? 
     RtcTokenBuilder.Role.PUBLISHER : 
     RtcTokenBuilder.Role.ATTENDEE;
+    if (typeof agoraRole !== 'number') {
+        throw new Error('Invalid role specified for token generation');
+    }
 
   // Generate token
   const token = RtcTokenBuilder.buildTokenWithUid(
@@ -42,6 +45,14 @@ function generateToken(channelName, uid, role, isAdmin) {
     agoraRole,
     privilegeExpiredTs
   );
+  console.log('Generating token with role:', agoraRole);
+console.log('Token content before signing:', {
+  appID: AGORA_APP_ID,
+  channel: channelName,
+  uid: stringUid,
+  role: agoraRole,
+  expires: new Date(privilegeExpiredTs * 1000).toISOString()
+});
   console.log('Token generated with:', {
     appId: AGORA_APP_ID,
     certificate: AGORA_APP_CERTIFICATE?.substring(0, 6) + '...',
