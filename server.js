@@ -1,26 +1,9 @@
 const express = require('express');
-const RtcTokenBuilder = require('./RtcTokenBuilder').RtcTokenBuilder;
+const { RtcTokenBuilder } = require('./RtcTokenBuilder');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Environment variables
-const AGORA_APP_ID = process.env.AGORA_APP_ID;
-const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
-
-// Validate required environment variables
-if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
-  console.error('Missing required environment variables');
-  process.exit(1);
-}
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
+// Middleware and other setup remains the same...
 
 // Token endpoint
 app.post('/token', async (req, res) => {
@@ -32,12 +15,11 @@ app.post('/token', async (req, res) => {
     }
 
     const expirationInSeconds = 3600;
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
+    const privilegeExpiredTs = Math.floor(Date.now() / 1000) + expirationInSeconds;
     
     const agoraRole = (role === 'publisher' || isAdmin) ? 
       RtcTokenBuilder.Role.PUBLISHER : 
-      RtcTokenBuilder.Role.ATTENDEE;
+      RtcTokenBuilder.Role.SUBSCRIBER;
 
     const token = RtcTokenBuilder.buildTokenWithUid(
       AGORA_APP_ID,
@@ -54,6 +36,8 @@ app.post('/token', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate token' });
   }
 });
+
+// Rest of your server code...
 
 // Start server
 app.listen(PORT, () => {
