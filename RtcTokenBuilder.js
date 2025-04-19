@@ -1,3 +1,6 @@
+const crypto = require('crypto');
+const msgpack = require('msgpack-lite');
+
 const RtcTokenBuilder = {
     Role: {
         PUBLISHER: 1,
@@ -5,12 +8,11 @@ const RtcTokenBuilder = {
     },
 
     buildTokenWithUid: function(appId, appCertificate, channelName, uid, role, privilegeExpiredTs) {
-        const token = this.buildTokenWithAccount(appId, appCertificate, channelName, uid.toString(), role, privilegeExpiredTs);
-        return token;
+        return this.buildTokenWithAccount(appId, appCertificate, channelName, uid.toString(), role, privilegeExpiredTs);
     },
 
     buildTokenWithAccount: function(appId, appCertificate, channelName, account, role, privilegeExpiredTs) {
-        const token = new AccessToken2(appId, appCertificate, 3600);
+        const token = new AccessToken2(appId, appCertificate, privilegeExpiredTs);
         token.addPrivilege(Privileges.kJoinChannel, privilegeExpiredTs);
         
         if (role === this.Role.PUBLISHER) {
@@ -23,7 +25,6 @@ const RtcTokenBuilder = {
     }
 };
 
-// Add these helper classes
 class AccessToken2 {
     constructor(appId, appCertificate, expire) {
         this.appId = appId;
@@ -46,21 +47,17 @@ class AccessToken2 {
 
     getSign() {
         const content = this.getContent();
-        return this.hmacsha256(this.appCertificate, content);
+        return crypto.createHmac('sha256', this.appCertificate).update(content).digest('hex');
     }
 
     getContent() {
-        const m = MessagePack.pack({
-            signature: this.hmacsha256(this.appCertificate, this.appId),
+        const data = {
+            signature: crypto.createHmac('sha256', this.appCertificate).update(this.appId).digest('hex'),
             salt: this.salt,
             ts: this.issueTs,
             services: this.services
-        });
-        return Buffer.from(m).toString('base64');
-    }
-
-    hmacsha256(key, str) {
-        return crypto.createHmac('sha256', key).update(str).digest('hex');
+        };
+        return Buffer.from(msgpack.encode(data)).toString('base64');
     }
 }
 
@@ -70,3 +67,5 @@ const Privileges = {
     kPublishVideoStream: 3,
     kPublishDataStream: 4
 };
+
+module.exports = { RtcTokenBuilder };
