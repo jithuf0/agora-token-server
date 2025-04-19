@@ -1,4 +1,3 @@
-// RtcTokenBuilder.js
 const crypto = require('crypto');
 
 const RtcTokenBuilder = {
@@ -22,13 +21,13 @@ const RtcTokenBuilder = {
         const tokenVersion = "006";
         const expiredTs = privilegeExpiredTs || 0;
         
-        // Create message content
+        // Create message content - FIXED: Use the actual role parameter, not the uid
         const tokenContent = {
             appID: appID,
             appCertificate: appCertificate,
             channelName: channelName,
-            uid: uid.toString(), // Ensure uid is string for consistent hashing
-            role: role,
+            uid: uid.toString(),
+            role: role,  // Use the role parameter directly
             privilegeExpiredTs: expiredTs
         };
 
