@@ -18,28 +18,32 @@ const RtcTokenBuilder = {
     },
 
     createToken: function(appID, appCertificate, channelName, uid, role, privilegeExpiredTs) {
+        // Version 006 tokens
         const tokenVersion = "006";
         const expiredTs = privilegeExpiredTs || 0;
         
-        // Assemble token content
+        // Create message content
         const tokenContent = {
             appID: appID,
             appCertificate: appCertificate,
             channelName: channelName,
-            uid: uid,
+            uid: uid.toString(), // Ensure uid is string for consistent hashing
             role: role,
             privilegeExpiredTs: expiredTs
         };
 
-        // Serialize token content
+        // Serialize content
         const content = JSON.stringify(tokenContent);
-        const sign = this.hmacsha256(appID, appCertificate, channelName, uid, expiredTs);
         
-        // Combine token components
+        // Generate signature
+        const sign = this.hmacsha256(appID, appCertificate, channelName, uid.toString(), expiredTs);
+        
+        // Combine components
         return `${tokenVersion}${content}${sign}`;
     },
 
     hmacsha256: function(appID, appCertificate, channelName, uid, expiredTs) {
+        // Create HMAC-SHA256 signature
         const key = appCertificate;
         const message = `${appID}${channelName}${uid}${expiredTs}`;
         const sign = crypto.createHmac('sha256', key).update(message).digest('hex');
