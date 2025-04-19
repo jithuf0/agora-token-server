@@ -17,56 +17,10 @@ if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
   process.exit(1);
 }
 
-// Generate Agora token
-function generateToken(channelName, uid, role, isAdmin) {
-  const expirationInSeconds = 3600;
-  const currentTimestamp = Math.floor(Date.now() / 1000);
-  const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
-  
-  // Convert UID to number if it's a string
-  const numericUid = typeof uid === 'string' ? parseInt(uid) : uid;
-  const stringUid = numericUid.toString();
-  
-  // Determine role
-  const agoraRole = (role === 'publisher' || isAdmin) ? 
-    RtcTokenBuilder.Role.PUBLISHER : 
-    RtcTokenBuilder.Role.ATTENDEE;
-    if (typeof agoraRole !== 'number') {
-        throw new Error('Invalid role specified for token generation');
-    }
-
-  // Generate token
-  const token = RtcTokenBuilder.buildTokenWithUid(
-    AGORA_APP_ID,
-    AGORA_APP_CERTIFICATE,
-    channelName,
-    stringUid, 
-    numericUid,
-    agoraRole,
-    privilegeExpiredTs
-  );
-  console.log('Generating token with role:', agoraRole);
-console.log('Token content before signing:', {
-  appID: AGORA_APP_ID,
-  channel: channelName,
-  uid: stringUid,
-  role: agoraRole,
-  expires: new Date(privilegeExpiredTs * 1000).toISOString()
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
-  console.log('Token generated with:', {
-    appId: AGORA_APP_ID,
-    certificate: AGORA_APP_CERTIFICATE?.substring(0, 6) + '...',
-    channel: channelName,
-    uid: stringUid,
-    role: agoraRole,
-    expires: new Date(privilegeExpiredTs * 1000).toISOString()
-  });
-  console.log('Token content:', tokenContent);
-console.log('Full token:', token);
-
-  console.log('Generated token:', token.substring(0, 50) + '...'); // Log first part of token
-  return token;
-}
 
 // Token endpoint
 app.post('/token', async (req, res) => {
@@ -77,12 +31,22 @@ app.post('/token', async (req, res) => {
       return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    const token = generateToken(channelName, uid, role, isAdmin);
+    const expirationInSeconds = 3600;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
     
-    // Verify token starts with 006 before sending
-    if (!token.startsWith('006')) {
-      throw new Error('Token generation failed - invalid format');
-    }
+    const agoraRole = (role === 'publisher' || isAdmin) ? 
+      RtcTokenBuilder.Role.PUBLISHER : 
+      RtcTokenBuilder.Role.ATTENDEE;
+
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      AGORA_APP_ID,
+      AGORA_APP_CERTIFICATE,
+      channelName,
+      uid,
+      agoraRole,
+      privilegeExpiredTs
+    );
     
     res.json({ token });
   } catch (error) {
