@@ -21,18 +21,18 @@ const RtcTokenBuilder = {
         const tokenVersion = "006";
         const expiredTs = privilegeExpiredTs || 0;
         
-        // Create message content - FIXED: Use the actual role parameter, not the uid
+        // Create message content
         const tokenContent = {
             appID: appID,
             appCertificate: appCertificate,
             channelName: channelName,
             uid: uid.toString(),
-            role: role,  // Use the role parameter directly
+            role: role,
             privilegeExpiredTs: expiredTs
         };
 
-        // Serialize content
-        const content = JSON.stringify(tokenContent, null, 0);
+        // Serialize content without spaces
+        const content = JSON.stringify(tokenContent).replace(/\s+/g, '');
         
         // Generate signature
         const sign = this.hmacsha256(appID, appCertificate, channelName, uid.toString(), expiredTs);
