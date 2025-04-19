@@ -17,49 +17,78 @@ if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
   process.exit(1);
 }
 
-// Token generation with enhanced validation
-function generateToken(channelName, uid, isPublisher, expireTimestamp) {
-    const role = isPublisher ? 1 : 0; // 1=Publisher, 0=Subscriber
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      AGORA_APP_ID,
-      AGORA_APP_CERTIFICATE,
-      channelName,
-      uid,
-      role,
-      expireTimestamp || currentTimestamp + 3600 // Default 1 hour
-    );
+// Token generator function
+function generateToken(channelName, uid, role, privilegeExpiredTs) {
+  // Version 006 tokens
+  const tokenVersion = "006";
   
+  // Create token content
+  const tokenContent = {
+    appID: AGORA_APP_ID,
+    appCertificate: AGORA_APP_CERTIFICATE,
+    channelName: channelName,
+    uid: uid.toString(),
+    role: role,
+    privilegeExpiredTs: privilegeExpiredTs
+  };
+
+  // Serialize content
+  const content = JSON.stringify(tokenContent);
+  
+  // Generate signature
+  const sign = crypto.createHmac('sha256', AGORA_APP_CERTIFICATE)
+    .update(`${AGORA_APP_ID}${channelName}${uid}${privilegeExpiredTs}`)
+    .digest('hex');
+  
+  // Combine components
+  return `${tokenVersion}${content}${sign}`;
+}
+
+// Token endpoint
+app.post('/token', async (req, res) => {
+  try {
+    const { channelName, uid, isPublisher = false } = req.body;
+    
+    // Validate inputs
+    if (!channelName || typeof uid === 'undefined') {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // Calculate expiration (24 hours from now)
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + 86400; // 24 hours
+    
+    // Role: 1 for publisher, 0 for subscriber
+    const role = isPublisher ? 1 : 0;
+
+    const token = generateToken(
+      channelName, 
+      uid, 
+      role, 
+      privilegeExpiredTs
+    );
+
     // Validate token format
     if (!token.startsWith('006') || token.length < 32) {
-      throw new Error('Invalid token generated');
+      throw new Error('Invalid token format generated');
     }
-  
-    return token;
+
+    res.json({ 
+      token,
+      uid: parseInt(uid, 10),
+      expiresAt: privilegeExpiredTs
+    });
+
+    console.log(`Generated token for channel ${channelName}, UID ${uid}, expires at ${new Date(privilegeExpiredTs * 1000)}`);
+    
+  } catch (error) {
+    console.error('Token generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate token',
+      details: error.message
+    });
   }
-  
-  app.post('/token', (req, res) => {
-    try {
-      const { channelName, uid, isPublisher = false, expireTimestamp } = req.body;
-      
-      if (!channelName || typeof uid === 'undefined') {
-        return res.status(400).json({ error: 'Missing required parameters' });
-      }
-  
-      const token = generateToken(channelName, uid, isPublisher, expireTimestamp);
-      
-      res.json({ 
-        token,
-        uid: parseInt(uid, 10),
-        expiresAt: expireTimestamp || Math.floor(Date.now() / 1000) + 3600
-      });
-    } catch (error) {
-      console.error('Token generation error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-  
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
