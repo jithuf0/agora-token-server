@@ -33,8 +33,8 @@ function buildTokenWithUid(appId, appCertificate, channelName, uid, role, privil
     appID: appId,
     appCertificate: appCertificate,
     channelName: channelName,
-    uid: uid.toString(),
-    role: role,
+    uid: parseInt(uid),
+    
     privilegeExpiredTs: privilegeExpiredTs
   };
 
