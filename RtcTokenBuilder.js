@@ -1,53 +1,72 @@
-const crypto = require('crypto');
-
 const RtcTokenBuilder = {
     Role: {
-        ATTENDEE: 0,
         PUBLISHER: 1,
-        ADMIN: 2
+        SUBSCRIBER: 2
     },
 
-    buildTokenWithUid: function(appID, appCertificate, channelName, uid, role, privilegeExpiredTs) {
-        return this.buildTokenWithAccount(appID, appCertificate, channelName, uid, role, privilegeExpiredTs);
-    },
-
-    buildTokenWithAccount: function(appID, appCertificate, channelName, account, role, privilegeExpiredTs) {
-        const token = this.createToken(appID, appCertificate, channelName, account, role, privilegeExpiredTs);
+    buildTokenWithUid: function(appId, appCertificate, channelName, uid, role, privilegeExpiredTs) {
+        const token = this.buildTokenWithAccount(appId, appCertificate, channelName, uid.toString(), role, privilegeExpiredTs);
         return token;
     },
 
-    createToken: function(appID, appCertificate, channelName, uid, role, privilegeExpiredTs) {
-        // Version 006 tokens
-        const tokenVersion = "006";
-        const expiredTs = privilegeExpiredTs || 0;
+    buildTokenWithAccount: function(appId, appCertificate, channelName, account, role, privilegeExpiredTs) {
+        const token = new AccessToken2(appId, appCertificate, 3600);
+        token.addPrivilege(Privileges.kJoinChannel, privilegeExpiredTs);
         
-        // Create message content
-        const tokenContent = {
-            appID: appID,
-            appCertificate: appCertificate,
-            channelName: channelName,
-            uid: uid.toString(),
-            role: role,
-            privilegeExpiredTs: expiredTs
-        };
-
-        // Serialize content without spaces
-        const content = JSON.stringify(tokenContent).replace(/\s+/g, '');
+        if (role === this.Role.PUBLISHER) {
+            token.addPrivilege(Privileges.kPublishAudioStream, privilegeExpiredTs);
+            token.addPrivilege(Privileges.kPublishVideoStream, privilegeExpiredTs);
+            token.addPrivilege(Privileges.kPublishDataStream, privilegeExpiredTs);
+        }
         
-        // Generate signature
-        const sign = this.hmacsha256(appID, appCertificate, channelName, uid.toString(), expiredTs);
-        
-        // Combine components
-        return `${tokenVersion}${content}${sign}`;
-    },
-
-    hmacsha256: function(appID, appCertificate, channelName, uid, expiredTs) {
-        // Create HMAC-SHA256 signature
-        const key = appCertificate;
-        const message = `${appID}${channelName}${uid}${expiredTs}`;
-        const sign = crypto.createHmac('sha256', key).update(message).digest('hex');
-        return sign;
+        return token.build();
     }
 };
 
-module.exports.RtcTokenBuilder = RtcTokenBuilder;
+// Add these helper classes
+class AccessToken2 {
+    constructor(appId, appCertificate, expire) {
+        this.appId = appId;
+        this.appCertificate = appCertificate;
+        this.expire = expire;
+        this.issueTs = Math.floor(Date.now() / 1000);
+        this.salt = Math.floor(Math.random() * 99999999);
+        this.services = {};
+    }
+
+    addPrivilege(privilege, expireTs) {
+        this.services[privilege] = expireTs;
+    }
+
+    build() {
+        const signing = this.getSign();
+        const content = this.getContent();
+        return `${this.appId}:${content}:${signing}`;
+    }
+
+    getSign() {
+        const content = this.getContent();
+        return this.hmacsha256(this.appCertificate, content);
+    }
+
+    getContent() {
+        const m = MessagePack.pack({
+            signature: this.hmacsha256(this.appCertificate, this.appId),
+            salt: this.salt,
+            ts: this.issueTs,
+            services: this.services
+        });
+        return Buffer.from(m).toString('base64');
+    }
+
+    hmacsha256(key, str) {
+        return crypto.createHmac('sha256', key).update(str).digest('hex');
+    }
+}
+
+const Privileges = {
+    kJoinChannel: 1,
+    kPublishAudioStream: 2,
+    kPublishVideoStream: 3,
+    kPublishDataStream: 4
+};
