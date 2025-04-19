@@ -33,7 +33,7 @@ const RtcTokenBuilder = {
         };
 
         // Serialize content
-        const content = JSON.stringify(tokenContent);
+        const content = JSON.stringify(tokenContent, null, 0);
         
         // Generate signature
         const sign = this.hmacsha256(appID, appCertificate, channelName, uid.toString(), expiredTs);
