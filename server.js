@@ -61,6 +61,8 @@ console.log('Token content before signing:', {
     role: agoraRole,
     expires: new Date(privilegeExpiredTs * 1000).toISOString()
   });
+  console.log('Token content:', tokenContent);
+console.log('Full token:', token);
 
   console.log('Generated token:', token.substring(0, 50) + '...'); // Log first part of token
   return token;
