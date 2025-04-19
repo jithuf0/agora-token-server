@@ -1,39 +1,54 @@
-// In your Node.js token server
+// RtcTokenBuilder.js
 const crypto = require('crypto');
 
 const RtcTokenBuilder = {
     Role: {
+        ATTENDEE: 0,
         PUBLISHER: 1,
-        SUBSCRIBER: 2
+        ADMIN: 2
     },
 
-    buildTokenWithUid: function(appId, appCertificate, channelName, uid, role, privilegeExpiredTs) {
-        // Ensure all required parameters are present
-        if (!appId || !appCertificate || !channelName || uid === undefined || !role) {
-            throw new Error('Missing required parameters for token generation');
-        }
-        
-        // Validate privilegeExpiredTs is in the future
-        const currentTs = Math.floor(Date.now() / 1000);
-        if (privilegeExpiredTs <= currentTs) {
-            throw new Error('Token expiration must be in the future');
-        }
-
-        return this.buildTokenWithAccount(appId, appCertificate, channelName, uid.toString(), role, privilegeExpiredTs);
+    buildTokenWithUid: function(appID, appCertificate, channelName, uid, role, privilegeExpiredTs) {
+        return this.buildTokenWithAccount(appID, appCertificate, channelName, uid, role, privilegeExpiredTs);
     },
 
-    buildTokenWithAccount: function(appId, appCertificate, channelName, account, role, privilegeExpiredTs) {
-        const token = new AccessToken2(appId, appCertificate, privilegeExpiredTs);
+    buildTokenWithAccount: function(appID, appCertificate, channelName, account, role, privilegeExpiredTs) {
+        const token = this.createToken(appID, appCertificate, channelName, account, role, privilegeExpiredTs);
+        return token;
+    },
+
+    createToken: function(appID, appCertificate, channelName, uid, role, privilegeExpiredTs) {
+        // Version 006 tokens
+        const tokenVersion = "006";
+        const expiredTs = privilegeExpiredTs || 0;
         
-        // Always add join channel privilege
-        token.addPrivilege(Privileges.kJoinChannel, privilegeExpiredTs);
+        // Create message content
+        const tokenContent = {
+            appID: appID,
+            appCertificate: appCertificate,
+            channelName: channelName,
+            uid: uid.toString(), // Ensure uid is string for consistent hashing
+            role: role,
+            privilegeExpiredTs: expiredTs
+        };
+
+        // Serialize content
+        const content = JSON.stringify(tokenContent);
         
-        if (role === this.Role.PUBLISHER) {
-            token.addPrivilege(Privileges.kPublishAudioStream, privilegeExpiredTs);
-            token.addPrivilege(Privileges.kPublishVideoStream, privilegeExpiredTs);
-            token.addPrivilege(Privileges.kPublishDataStream, privilegeExpiredTs);
-        }
+        // Generate signature
+        const sign = this.hmacsha256(appID, appCertificate, channelName, uid.toString(), expiredTs);
         
-        return token.build();
+        // Combine components
+        return `${tokenVersion}${content}${sign}`;
+    },
+
+    hmacsha256: function(appID, appCertificate, channelName, uid, expiredTs) {
+        // Create HMAC-SHA256 signature
+        const key = appCertificate;
+        const message = `${appID}${channelName}${uid}${expiredTs}`;
+        const sign = crypto.createHmac('sha256', key).update(message).digest('hex');
+        return sign;
     }
 };
+
+module.exports.RtcTokenBuilder = RtcTokenBuilder;
