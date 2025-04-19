@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const msgpack = require('msgpack-lite');
 
 const RtcTokenBuilder = {
     Role: {
@@ -51,13 +50,14 @@ class AccessToken2 {
     }
 
     getContent() {
-        const data = {
+        // Simplified content generation without msgpack
+        const contentObj = {
             signature: crypto.createHmac('sha256', this.appCertificate).update(this.appId).digest('hex'),
             salt: this.salt,
             ts: this.issueTs,
             services: this.services
         };
-        return Buffer.from(msgpack.encode(data)).toString('base64');
+        return Buffer.from(JSON.stringify(contentObj)).toString('base64');
     }
 }
 
