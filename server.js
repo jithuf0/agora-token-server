@@ -37,7 +37,7 @@ function buildTokenWithUid(appId, appCertificate, channelName, uid, role, privil
     channelName: channelName,
     uid: parseInt(uid),
     
-    
+    privilegeExpiredTs: privilegeExpiredTs
   };
 
   // Serialize content
@@ -70,8 +70,7 @@ app.post('/token', async (req, res) => {
 
     // Set token expiration (24 hours)
     const expirationInSeconds = 86400;
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
+    
 
     // Generate token with proper role
     const role = isPublisher ? Role.PUBLISHER : Role.SUBSCRIBER;
