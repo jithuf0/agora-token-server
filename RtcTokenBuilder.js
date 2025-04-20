@@ -39,13 +39,13 @@ const RtcTokenBuilder = {
         const sign = this.hmacsha256(appID, appCertificate, channelName, uid.toString(), expiredTs);
         
         // Combine components
-        return `${tokenVersion}${content}${sign}`;
+        return ${tokenVersion}${content}${sign};
     },
 
     hmacsha256: function(appID, appCertificate, channelName, uid, expiredTs) {
         // Create HMAC-SHA256 signature
         const key = appCertificate;
-        const message = `${appID}${channelName}${uid}${expiredTs}`;
+        const message = ${appID}${channelName}${uid}${expiredTs};
         const sign = crypto.createHmac('sha256', key).update(message).digest('hex');
         return sign;
     }
