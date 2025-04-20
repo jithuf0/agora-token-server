@@ -37,7 +37,7 @@ function buildTokenWithUid(appId, appCertificate, channelName, uid, role, privil
     channelName: channelName,
     uid: parseInt(uid),
     
-    privilegeExpiredTs: privilegeExpiredTs
+    
   };
 
   // Serialize content
