@@ -1,5 +1,5 @@
 const express = require('express');
-const crypto = require('crypto');
+const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -17,41 +17,6 @@ if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
   process.exit(1);
 }
 
-// Define token builder roles
-const Role = {
-  PUBLISHER: 1,
-  SUBSCRIBER: 2
-};
-
-// Token generation function
-function buildTokenWithUid(appId, appCertificate, channelName, uid, role, privilegeExpiredTs) {
-  const currentTimestamp = Math.floor(Date.now() / 1000);
-  const privilegeExpiredTs = currentTimestamp + 3600;
-  // Version 006 tokens
-  const tokenVersion = "006";
-  
-  // Create message content
-  const tokenContent = {
-    appID: appId,
-    appCertificate: appCertificate,
-    channelName: channelName,
-    uid: parseInt(uid),
-    
-    privilegeExpiredTs: privilegeExpiredTs
-  };
-
-  // Serialize content
-  const content = JSON.stringify(tokenContent);
-  
-  // Generate signature
-  const sign = crypto.createHmac('sha256', appCertificate)
-    .update(`${appId}${channelName}${uid}${privilegeExpiredTs}`)
-    .digest('hex');
-  
-  // Combine components
-  return `${tokenVersion}${content}${sign}`;
-}
-
 // Token endpoint with enhanced error handling
 app.post('/token', async (req, res) => {
   try {
@@ -62,7 +27,7 @@ app.post('/token', async (req, res) => {
       return res.status(400).json({ error: 'Missing channelName or uid' });
     }
 
-    // Convert UID to number and validate
+    // Convert UID to number
     const numericUid = parseInt(uid, 10);
     if (isNaN(numericUid)) {
       return res.status(400).json({ error: 'Invalid UID format' });
@@ -70,11 +35,12 @@ app.post('/token', async (req, res) => {
 
     // Set token expiration (24 hours)
     const expirationInSeconds = 86400;
-    
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
 
-    // Generate token with proper role
-    const role = isPublisher ? Role.PUBLISHER : Role.SUBSCRIBER;
-    const token = buildTokenWithUid(
+    // Generate token with proper role using official Agora SDK
+    const role = isPublisher ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+    const token = RtcTokenBuilder.buildTokenWithUid(
       AGORA_APP_ID,
       AGORA_APP_CERTIFICATE,
       channelName,
@@ -83,7 +49,7 @@ app.post('/token', async (req, res) => {
       privilegeExpiredTs
     );
 
-    console.log(`Generated token for channel ${channelName}, UID ${numericUid}, expires at ${new Date(privilegeExpiredTs * 1000)}`);
+    console.log(`Generated official token for channel ${channelName}, UID ${numericUid}, expires at ${new Date(privilegeExpiredTs * 1000)}`);
     
     res.json({ 
       token,
