@@ -25,6 +25,8 @@ const Role = {
 
 // Token generation function
 function buildTokenWithUid(appId, appCertificate, channelName, uid, role, privilegeExpiredTs) {
+  const currentTimestamp = Math.floor(Date.now() / 1000);
+  const privilegeExpiredTs = currentTimestamp + 3600;
   // Version 006 tokens
   const tokenVersion = "006";
   
