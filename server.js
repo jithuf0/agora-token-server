@@ -3,6 +3,25 @@ const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Add CORS middleware
+const cors = require('cors'); // Add this line
+
+// Configure CORS options
+const corsOptions = {
+  origin: [
+    'https://talencia-tau.vercel.app', // Your production frontend
+    'http://localhost:3000'            // For local development
+  ],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
+};
+
+// Apply CORS middleware with options
+app.use(cors(corsOptions)); // Add this line
+
+// Handle preflight requests
+app.options('*', cors(corsOptions)); // Add this line
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
